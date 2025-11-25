@@ -12,6 +12,24 @@
     <style>
         body { background-color: #f0f2f5; font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding-bottom: 100px; }
         
+        /* === RESTORED: IMAGE VIEWER (Lightbox) === */
+        #imageOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 10000;
+            display: none; justify-content: center; align-items: center;
+            cursor: pointer; animation: fadeIn 0.2s ease-in-out;
+        }
+        #fullImage {
+            max-width: 95%; max-height: 90%;
+            object-fit: contain; border-radius: 4px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+        }
+        .close-hint {
+            position: absolute; bottom: 30px; color: rgba(255,255,255,0.6);
+            font-size: 0.9rem; pointer-events: none;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
         /* LOGIN SECTION */
         #loginSection {
             height: 100vh; width: 100%;
@@ -61,6 +79,17 @@
         .price-text { color: #d32f2f; font-weight: 800; font-size: 1.2rem; }
         .part-code { color: #2C3E50; font-size: 1rem; font-weight: 800; letter-spacing: 0.5px; }
         .part-name { font-weight: 600; color: #555; font-size: 0.9rem; line-height: 1.3; margin-bottom: 4px; }
+        
+        /* Image Styles */
+        .product-img-thumb {
+            width: 80px; height: 80px; object-fit: cover; border-radius: 8px; 
+            background: #eee; border: 1px solid #eee; flex-shrink: 0;
+        }
+        .modal-img { 
+            width: 100%; height: auto; border-radius: 8px; 
+            max-height: 250px; object-fit: contain; background: #f8f9fa; 
+            cursor: zoom-in; border: 1px solid #eee;
+        }
 
         /* CART FAB */
         .fab-cart {
@@ -88,6 +117,12 @@
     </style>
 </head>
 <body>
+
+    <!-- IMAGE VIEWER OVERLAY -->
+    <div id="imageOverlay" onclick="window.closeImageViewer()">
+        <img id="fullImage" src="">
+        <div class="close-hint"><i class="bi bi-x-circle"></i> Tap anywhere to close</div>
+    </div>
 
     <!-- LOGIN SECTION -->
     <div id="loginSection">
@@ -131,8 +166,10 @@
 
             <h3 class="fw-bold mb-1">FROTISE</h3>
             <p class="opacity-75 mb-0 small letter-spacing-1">STEERING RACK</p>
-            <div class="mt-2 badge bg-light text-dark opacity-75 small" style="font-size: 0.85rem;">
-                User: <span id="userDisplay" class="fw-bold text-uppercase"></span>
+            
+            <!-- Customized Welcome Message -->
+            <div class="mt-2 badge bg-light text-dark opacity-75 small" style="font-size: 0.9rem;">
+                Welcome, <span id="userDisplay" class="fw-bold text-uppercase text-primary"></span>
             </div>
         </div>
 
@@ -157,7 +194,7 @@
         </div>
     </div>
 
-    <!-- PRODUCT MODAL (No Image Feature) -->
+    <!-- PRODUCT MODAL -->
     <div class="modal fade" id="productModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -167,6 +204,12 @@
                 </div>
                 <div class="modal-body text-center pt-4">
                     
+                    <!-- RESTORED IMAGE DISPLAY -->
+                    <div class="mb-3">
+                        <img src="" id="modalImg" class="modal-img shadow-sm" alt="Product" onclick="window.viewImage(this.src)">
+                        <div class="text-muted small mt-1"><i class="bi bi-zoom-in"></i> Tap image to view full size</div>
+                    </div>
+
                     <h3 class="fw-bold text-primary mb-2" id="modalCode"></h3>
                     <h6 class="text-muted mb-4 px-3" id="modalName"></h6>
 
@@ -220,13 +263,12 @@
                         <i class="bi bi-exclamation-triangle"></i> Limit: 100,000. Reduce qty.
                     </div>
                     <div class="d-grid gap-2">
-                        <!-- WhatsApp Button -->
                         <button onclick="window.confirmOrder()" class="btn btn-success btn-lg">
                             <i class="bi bi-whatsapp"></i> Send to WhatsApp
                         </button>
-                        <!-- Download CSV Button (RESTORED) -->
+                        <!-- RESTORED CSV DOWNLOAD BUTTON -->
                         <button onclick="window.downloadCSV()" class="btn btn-outline-dark btn-sm">
-                            <i class="bi bi-download"></i> Download Order as CSV
+                            <i class="bi bi-download"></i> Download CSV
                         </button>
                     </div>
                 </div>
@@ -239,14 +281,13 @@
     <script>
         // CONFIG
         const currencyUnit = ""; 
-        const myWhatsAppNumber = "0550584720"; // CHANGE THIS
+        const myWhatsAppNumber = "0550584720"; // CHANGE TO YOUR NUMBER
         const orderLimit = 100000; 
-        const promoMinQty = 5; 
         
-        // VALID USERS
+        // --- CUSTOMER CONFIGURATION ---
         const validUsers = [
-            { id: "GH98904", pass: "0000" },
-            { id: "GH10053", pass: "0000" }
+            { id: "GH98904", pass: "0000", name: "DIGINUE AUTO" },
+            { id: "GH10053", pass: "0000", name: "ALPHA AUTO" }
         ];
 
         // STATE
@@ -264,6 +305,17 @@
             loadDataFromCSV();
         });
 
+        // --- IMAGE VIEWER ---
+        window.viewImage = function(src) {
+            if(!src || src.includes('via.placeholder')) return;
+            document.getElementById('fullImage').src = src;
+            document.getElementById('imageOverlay').style.display = 'flex';
+        };
+
+        window.closeImageViewer = function() {
+            document.getElementById('imageOverlay').style.display = 'none';
+        };
+
         // --- DATA LOADING ---
         function loadDataFromCSV() {
             document.getElementById('loadingMsg').style.display = 'block';
@@ -275,7 +327,7 @@
                 .then(text => parseAndSetData(text))
                 .catch(err => {
                     console.log("CSV Load Error: " + err.message);
-                    window.database = [{code:"DEMO", name:"Sample Item", stock:100, price:100, promo:0}];
+                    window.database = []; // Init empty if fail
                     finishLoad();
                 });
         }
@@ -289,6 +341,7 @@
                 const cols = line.split(',');
                 if(cols.length >= 4) {
                     let promo = 0;
+                    // V11 format support, though not requested for steering rack, good to have stability
                     if(cols.length >= 5) promo = parseFloat(cols[4].trim()) || 0;
                     newDb.push({
                         code: cols[0].trim(),
@@ -313,11 +366,12 @@
             const idInput = document.getElementById('loginId').value.trim().toUpperCase();
             const passInput = document.getElementById('loginPass').value.trim();
 
+            // FIND USER AND MAP NAME
             const user = validUsers.find(u => u.id === idInput && u.pass === passInput);
 
             if (user) {
-                window.loggedInUser = user.id; 
-                document.getElementById('userDisplay').innerText = user.id;
+                window.loggedInUser = user; 
+                document.getElementById('userDisplay').innerText = user.name; // Display "DIGINUE AUTO" etc
                 document.getElementById('loginSection').style.display = 'none';
                 document.getElementById('mainApp').style.display = 'block';
                 window.handleSearch(); 
@@ -359,6 +413,7 @@
             let html = '';
             results.forEach(item => {
                 const dbIndex = window.database.indexOf(item);
+                const imgSrc = `images/${item.code}.jpg`;
                 
                 let stockBadge = '';
                 if (item.stock <= 0) stockBadge = `<span class="stock-tag bg-stock-zero">OUT OF STOCK</span>`;
@@ -375,12 +430,13 @@
                         <div class="part-name text-muted mt-1">${item.name}</div>
                         <div class="price-text text-end mt-1">${currencyUnit}${item.price}</div>
                     </div>
+                    <img src="${imgSrc}" class="product-img-thumb ms-3" onerror="this.src='https://via.placeholder.com/80?text=No+Img'">
                 </div>`;
             });
             listDiv.innerHTML = html;
         };
 
-        // --- PRODUCT MODAL ---
+        // --- MODAL ---
         window.openProduct = function(index) {
             window.currentItem = window.database[index];
             if(!window.currentItem) return;
@@ -388,10 +444,14 @@
             const item = window.currentItem;
             document.getElementById('modalName').innerText = item.name;
             document.getElementById('modalCode').innerText = item.code;
-            document.getElementById('qtyInput').value = 1;
+            // Show image logic
+            const imgPath = `images/${item.code}.jpg`;
+            const imgEl = document.getElementById('modalImg');
+            imgEl.src = imgPath;
+            imgEl.onerror = function(){ this.src = 'https://via.placeholder.com/300?text=No+Image'; }
 
-            const priceContainer = document.getElementById('modalPriceContainer');
-            priceContainer.innerHTML = `<span class="price-regular fs-3">${currencyUnit}${item.price}</span>`;
+            document.getElementById('qtyInput').value = 1;
+            document.getElementById('modalPriceContainer').innerHTML = `<span class="fs-3 fw-bold text-dark">${currencyUnit}${item.price}</span>`;
 
             const statusDiv = document.getElementById('modalStockContent');
             const addBtnDiv = document.getElementById('addToCartSection');
@@ -407,7 +467,6 @@
                 if(item.stock <= 10) statusDiv.innerHTML = `<span class="badge bg-stock-low text-dark">LESS THAN 10</span>`;
                 else statusDiv.innerHTML = `<span class="badge bg-stock-high">IN STOCK</span>`;
             }
-            
             window.productModal.show();
         };
 
@@ -509,17 +568,18 @@
 
         window.confirmOrder = function() {
             if (window.cart.length === 0) return alert("Cart is empty");
+            
             const totalAmount = window.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
             if (totalAmount > orderLimit) return alert(`Order limit exceeded! Max: ${orderLimit}`);
             
-            // Deduct
+            // Deduct (Local)
             window.cart.forEach(cItem => {
                 const dbItem = window.database.find(d => d.code === cItem.code);
                 if(dbItem) dbItem.stock = Math.max(0, dbItem.stock - cItem.qty);
             });
 
             // WhatsApp
-            let msg = `🛒 *FROTISE ORDER (${window.loggedInUser})* \n\n`;
+            let msg = `🛒 *FROTISE ORDER (${window.loggedInUser.name})* \n\n`;
             window.cart.forEach(i => {
                 msg += `▪️ ${i.code} (x${i.qty}) - ${currencyUnit}${i.price}\n`;
             });
@@ -532,24 +592,20 @@
             window.handleSearch(); 
         };
 
-        // === DOWNLOAD CSV (RESTORED) ===
+        // --- CSV DOWNLOAD ---
         window.downloadCSV = function() {
             if (window.cart.length === 0) return alert("Cart is empty");
-            
             let csvContent = "data:text/csv;charset=utf-8,";
             csvContent += "Client,PartCode,Quantity,Price,LineTotal\n"; 
-            
             window.cart.forEach(item => {
-                csvContent += `${window.loggedInUser},${item.code},${item.qty},${item.price},${item.price * item.qty}\n`;
+                csvContent += `${window.loggedInUser.name},${item.code},${item.qty},${item.price},${item.price * item.qty}\n`;
             });
-
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `FROTISE_Steering_Order_${window.loggedInUser}.csv`);
+            link.setAttribute("download", `FROTISE_Order_${window.loggedInUser.name}.csv`);
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
         };
 
         document.getElementById('loginPass').addEventListener('keypress', function (e) {
